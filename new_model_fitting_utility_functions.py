@@ -124,7 +124,7 @@ def generate_fHMM_data(n_factors, n_states, emission_dim, n_timesteps, trans_dia
     hypers = dict(n_factors = n_factors,
                   n_states = n_states,
                   emission_dim = emission_dim,
-                  n_timesteps = n_timesteps,
+                  num_timesteps = n_timesteps,
                   tpm_diagonal = trans_diag,
                   selectivity = selectivity,
                   mean_scalar = mean_scalar)
@@ -326,7 +326,7 @@ def _compute_changes(params_change, lls_change):
     
     return [change_tpm, change_means, change_variances, change_lls]
 
-def _m_step(gammat_gibbs_m, states_outer_gibbs_m, trans_gibbs_m, emissions, hypers):
+def _m_step(gammat_gibbs_m, states_outer_gibbs_m, emissions, hypers):
     """
     Updated M-step using state probabilities estimated from Gibbs sampling,
     supporting different numbers of states per factor.
@@ -379,8 +379,15 @@ def _m_step(gammat_gibbs_m, states_outer_gibbs_m, trans_gibbs_m, emissions, hype
     for h in range(n_factors):
         s = n_states_list[h]
         block = combined_trans_mean[start:start+s, start:start+s]
+        # Normalize each row, handling zero sums without warnings
         row_sums = np.sum(block, axis=1, keepdims=True)
-        block = np.where(row_sums == 0, 1.0/s, block / row_sums)
+        # Use np.divide with where to avoid invalid divisions
+        block = np.zeros_like(block)
+        np.divide(combined_trans_mean[start:start+s, start:start+s], row_sums, out=block, where=(row_sums != 0))
+        # For rows that summed to zero, assign uniform probabilities
+        zero_rows = (row_sums.flatten() == 0)
+        if np.any(zero_rows):
+            block[zero_rows, :] = 1.0 / s
         transition_matrices_list.append(block)
         start += s
     params_m["transition_matrices"] = transition_matrices_list
@@ -553,9 +560,9 @@ def _gibbs_post_prob(emissions, params, hypers, options):
     # average over independent runs of gibbs to obtain posterior prob for exact m-step below 
     gammat_gibbs1=np.mean(gammat_runs,axis=0) # gammat_gibbs is an array of shape (num_timesteps, sum(n_states_list))
     states_outer_gibbs1=np.mean(states_outer_runs,axis=0)
-    trans_gibbs1=np.mean(trans_runs,axis=0)
+    # trans_gibbs1=np.mean(trans_runs,axis=0)
     
-    return gammat_gibbs1,states_outer_gibbs1,trans_gibbs1,states_run
+    return gammat_gibbs1,states_outer_gibbs1,states_run
 
 
 # def gibbs(emissions, hypers, options,seed1,pre_estimated_params=None):
@@ -657,13 +664,13 @@ def gibbs(emissions, hypers, options,seed1, pre_estimated_params=None):
     n_timesteps, emission_dim = emissions.shape
 
     
+    random.seed(seed1)
     if pre_estimated_params is not None:
         # params = pre_estimated_params    
         use_pre=True
         posteriors = pre_estimated_params['posteriors']
     else:
         use_pre=False
-        random.seed(seed1)
         params = {
             # Generate initial distribution per factor
             "initial_dist": [np.random.dirichlet(np.ones(n_states[h])) for h in range(n_factors)],
@@ -686,6 +693,8 @@ def gibbs(emissions, hypers, options,seed1, pre_estimated_params=None):
         if (use_pre and iopt == 0):
             print('Set expectations to pre_estimated_params values, skipping to m step')
             gammat_gibbs = np.hstack(posteriors) # reshape posteriors into an array of shape (num_timesteps, sum(n_states_list))
+            sigma = 0.05 # add a little jitter otherwise all runs are identical
+            gammat_gibbs += sigma * np.random.randn(*gammat_gibbs.shape)
             states_outer_gibbs = np.einsum('ti,tj->tij', gammat_gibbs, gammat_gibbs) 
             trans_gibbs = np.einsum('ti,tj->tij', gammat_gibbs[1:], gammat_gibbs[:-1])
             states_out = np.zeros((n_timesteps, n_factors), dtype=int)
@@ -697,9 +706,9 @@ def gibbs(emissions, hypers, options,seed1, pre_estimated_params=None):
             # gammat_gibbs, states_outer_gibbs, trans_gibbs, states_out = _gibbs_post_prob(emissions, params, hypers, options)
         else:
             # print(f'iteration {iopt}')
-            gammat_gibbs, states_outer_gibbs, trans_gibbs, states_out = _gibbs_post_prob(emissions, params, hypers, options)
+            gammat_gibbs, states_outer_gibbs, states_out = _gibbs_post_prob(emissions, params, hypers, options)
         # print(gammat_gibbs)
-        params, lls1 = _m_step(gammat_gibbs, states_outer_gibbs, trans_gibbs, emissions, hypers)
+        params, lls1 = _m_step(gammat_gibbs, states_outer_gibbs, emissions, hypers)
         # reformat gammat_gibbs from (num_timesteps,sum(n_states)) to a list of arrays
         posteriors_reformat=posteriors_array2list(gammat_gibbs,n_states)
         # split_indices = np.cumsum(n_states)[:-1]  # Get the split indices
@@ -708,8 +717,9 @@ def gibbs(emissions, hypers, options,seed1, pre_estimated_params=None):
         posteriors_list.append(posteriors_reformat)
         lls.append(lls1)
         params_samples.append(params)
+        # print(params['means'][0])
 
-        if iopt > 0:
+        if iopt > 5:
             changes = _compute_changes(params_samples, lls)
             # print(changes)
             if np.max(changes) < options['tolerance']:

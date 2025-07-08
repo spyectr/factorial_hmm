@@ -16,7 +16,6 @@ from scipy.cluster.hierarchy import linkage, fcluster, dendrogram
 from scipy.spatial.distance import squareform
 
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import seaborn as sns
 import pandas as pd
 # from tqdm.auto import trange 
@@ -42,6 +41,22 @@ from joblib import Parallel, delayed
 # from util_factorial_hmm import gibbs
 
 import os
+import matplotlib as mpl
+
+FNTSZ = 12
+mpl.rcParams.update({
+    'font.size':         FNTSZ,
+    'axes.titlesize':    FNTSZ,
+    'axes.labelsize':    FNTSZ,
+    'xtick.labelsize':   FNTSZ,
+    'ytick.labelsize':   FNTSZ,
+    'legend.fontsize':   FNTSZ,
+    'figure.titlesize':  FNTSZ
+})
+LETTER_WIDTH = 8.5
+FIG1_3 = LETTER_WIDTH / 3      # ≈2.83in
+FIG2_3 = 2 * LETTER_WIDTH / 3  # ≈5.67in
+
 
 os.makedirs("fig_modelsel", exist_ok=True)
 os.makedirs("data_modelsel", exist_ok=True)
@@ -202,15 +217,14 @@ def plot_r2_by_macroarea(r2_df, covariate_cols, title="Hold-out Variance Explain
     """
     melt_df = r2_df.melt(id_vars="Macroarea", value_vars=covariate_cols,
                          var_name="Behavior", value_name="r2")
-    fig = plt.figure(figsize=(12,8))
-    ax = sns.boxplot(data=melt_df, x="Behavior", y="r2", hue="Macroarea", palette="tab10")
-    ax.set_title(title, fontsize=30)
-    ax.set_xlabel("Behavior", fontsize=30)
-    ax.set_ylabel("Hold-out Variance Explained (R²)", fontsize=30)
-    ax.tick_params(axis="both", labelsize=30)
-    plt.legend(title="Macroarea", fontsize=30, title_fontsize=30)
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3))
+    sns.boxplot(data=melt_df, x="Behavior", y="r2", hue="Macroarea", palette="tab10", ax=ax)
+    ax.set_title(title)
+    ax.set_xlabel("Behavior")
+    ax.set_ylabel("Hold-out Variance Explained (R²)")
+    ax.tick_params(axis="both", labelsize=12)
+    ax.legend(title="Macroarea")
     plt.tight_layout()
-    # plt.show()
     return fig
 
 # --- Plotting function for fraction of significant regressions ---
@@ -232,15 +246,14 @@ def plot_fraction_significant(frac_df, title="Fraction of Significant Regression
     """
     Create a bar plot showing, for each behavioral covariate and Macroarea, the fraction of neurons with significant regression.
     """
-    fig = plt.figure(figsize=(12,8))
-    ax = sns.barplot(data=frac_df, x="Behavior", y="fraction_significant", hue="Macroarea", palette="tab10")
-    ax.set_ylabel("Fraction of Significant Regressions", fontsize=30)
-    ax.set_xlabel("Behavior", fontsize=30)
-    ax.set_title(title, fontsize=30)
-    ax.tick_params(axis="both", labelsize=30)
-    plt.legend(title="Macroarea", fontsize=30, title_fontsize=30)
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3))
+    sns.barplot(data=frac_df, x="Behavior", y="fraction_significant", hue="Macroarea", palette="tab10", ax=ax)
+    ax.set_ylabel("Fraction of Significant Regressions")
+    ax.set_xlabel("Behavior")
+    ax.set_title(title)
+    ax.tick_params(axis="both", labelsize=12)
+    ax.legend(title="Macroarea")
     plt.tight_layout()
-    # plt.show()
     return fig
 
 
@@ -321,24 +334,14 @@ def plot_transition_matrices(transition_matrices):
                                       transition probability matrices.
     """
     n_factors, n_states, _ = transition_matrices.shape
-    
-    # Create a figure with a grid of subplots
-    fig, axes = plt.subplots(n_factors, 1, figsize=(5 * n_states, 5 * n_factors))
-    
+    fig, axes = plt.subplots(n_factors, 1, figsize=(FIG1_3, FIG1_3))
     if n_factors == 1:
         axes = [axes]
-    
     for i in range(n_factors):
         ax = axes[i]
         matrix = transition_matrices[i]
-        
-        # Plot the heatmap
-        cax = ax.matshow(matrix, cmap='viridis')
-        
-        # Add colorbar
-        fig.colorbar(cax, ax=ax)
-        
-        # Set axis labels
+        im = ax.imshow(matrix, cmap='viridis')
+        fig.colorbar(im, ax=ax)
         ax.set_xticks(np.arange(n_states))
         ax.set_yticks(np.arange(n_states))
         ax.set_xticklabels(np.arange(n_states))
@@ -346,13 +349,10 @@ def plot_transition_matrices(transition_matrices):
         ax.set_xlabel('State To')
         ax.set_ylabel('State From')
         ax.set_title(f'Transition Matrix {i+1}')
-        
-        # Annotate the cells with the transition probabilities
         for (j, k), val in np.ndenumerate(matrix):
-            ax.text(k, j, f'{val:.4f}', ha='center', va='center', color='white' if val < 0.5 else 'black')
-    
+            ax.text(k, j, f'{val:.4f}', ha='center', va='center', color='white' if val < 0.5 else 'black', fontsize=12)
+        ax.tick_params(labelsize=12)
     plt.tight_layout()
-    # plt.show()
     
 def plot_fHMM_model(fHMM_model, lower=0, upper=None, tickspace=20):
     """
@@ -365,61 +365,92 @@ def plot_fHMM_model(fHMM_model, lower=0, upper=None, tickspace=20):
     tickspace(int): the space between your y axis tick marks for the emission traces
     """
     if upper is None:
-        upper = fHMM_model['hypers']['n_timesteps']
-        
-    fig, axs = plt.subplots(3, 1, sharex=True)
-    plt.setp(axs, yticks=list(range(fHMM_model['hypers']['emission_dim'])))
-    plt.sca(axs[0])
-    plt.yticks(list(range(fHMM_model['hypers']['n_factors'])))
-    
+        upper = fHMM_model['hypers']['num_timesteps']
+    fig, axs = plt.subplots(3, 1, sharex=True, figsize=(FIG2_3, FIG2_3 * 0.6), constrained_layout=True)
+    axs = np.array(axs)
+    axs[0].set_yticks(list(range(fHMM_model['hypers']['n_factors'])))
     # Visualize the true states
-    true_states = fHMM_model['fHMM_data']['true_states'].T
+    # true_states = fHMM_model['fHMM_data']['true_states'].T
+    true_states_full = fHMM_model['fHMM_data']['true_states'].T
+    true_states = true_states_full[:, lower:upper]
     unique_states = np.unique(true_states)
     cmap_greys = plt.cm.Greys
+    import matplotlib.colors as mcolors
     norm_greys = mcolors.BoundaryNorm(boundaries=np.arange(-0.5, len(unique_states) + 0.5, 1), ncolors=256)
-    img1 = axs[0].imshow(true_states, aspect="auto", interpolation="none", cmap=cmap_greys, norm=norm_greys)
+    img1 = sns.heatmap(
+        true_states,
+        ax=axs[0],
+        cmap=cmap_greys,
+        norm=norm_greys,
+        cbar=False  # defer to existing colorbar
+    )
     axs[0].set_title('true states')
-    axs[0].set_ylabel('factor')
-    cbar1 = fig.colorbar(img1, ax=axs[0], orientation='vertical', ticks=unique_states)
+    axs[0].set_ylabel('chain')
+    cbar1 = fig.colorbar(img1.get_children()[0], ax=axs[0], orientation='vertical', ticks=unique_states)
     cbar1.ax.set_yticklabels([str(int(state)) for state in unique_states])
-    
     # Find the global min and max for the emissions
-    expec_emissions = fHMM_model['fHMM_data']['expec_emissions'].T
-    emissions = fHMM_model['fHMM_data']['emissions'].T
+    # expec_emissions = fHMM_model['fHMM_data']['expec_emissions'].T
+    # emissions = fHMM_model['fHMM_data']['emissions'].T
+    expec_emissions_full = fHMM_model['fHMM_data']['expec_emissions'].T
+    expec_emissions = expec_emissions_full[:, lower:upper]
+    emissions_full = fHMM_model['fHMM_data']['emissions'].T
+    emissions = emissions_full[:, lower:upper]    
     vmin = min(np.min(expec_emissions), np.min(emissions))
     vmax = max(np.max(expec_emissions), np.max(emissions))
-    
     # Visualize the expected emissions
-    img2 = axs[1].imshow(expec_emissions, aspect="auto", interpolation="none", vmin=vmin, vmax=vmax)
+    img2 = sns.heatmap(
+        expec_emissions,
+        ax=axs[1],
+        vmin=vmin, vmax=vmax,
+        cmap='viridis',
+        cbar=False
+    )
     axs[1].set_title('expected emissions')
-    axs[1].set_ylabel('component')
+    axs[1].set_ylabel('emissions')
     y_ticks = axs[1].get_yticks()
     axs[1].set_yticks(y_ticks[::tickspace])
     axs[1].set_yticklabels([str(int(tick)) for tick in y_ticks[::tickspace]])
-    
-    # Set colorbar ticks for the expected emissions
-    cbar2_ticks = [vmin, 0, vmax] # [vmin, (vmin + vmax) / 2, vmax]
-    cbar2 = fig.colorbar(img2, ax=axs[1], orientation='vertical', ticks=cbar2_ticks)
+    cbar2_ticks = [vmin, 0, vmax]
+    cbar2 = fig.colorbar(img2.get_children()[0], ax=axs[1], orientation='vertical', ticks=cbar2_ticks)
     cbar2.ax.set_yticklabels([f'{tick:.2f}' for tick in cbar2_ticks])
-    
     # Visualize the actual emissions
-    img3 = axs[2].imshow(emissions, aspect="auto", interpolation="none", vmin=vmin, vmax=vmax)
+    img3 = sns.heatmap(
+        emissions,
+        ax=axs[2],
+        vmin=vmin, vmax=vmax,
+        cmap='viridis',
+        cbar=False
+    )
     axs[2].set_title('true emissions')
-    axs[2].set_ylabel('component')
+    axs[2].set_ylabel('emissions')
     y_ticks = axs[2].get_yticks()
     axs[2].set_yticks(y_ticks[::tickspace])
     axs[2].set_yticklabels([str(int(tick)) for tick in y_ticks[::tickspace]])
-    
-    # Set colorbar ticks for the actual emissions
-    cbar3_ticks = [vmin, 0, vmax] # [vmin, (vmin + vmax) / 2, vmax]
-    cbar3 = fig.colorbar(img3, ax=axs[2], orientation='vertical', ticks=cbar3_ticks)
+    cbar3_ticks = [vmin, 0, vmax]
+    cbar3 = fig.colorbar(img3.get_children()[0], ax=axs[2], orientation='vertical', ticks=cbar3_ticks)
     cbar3.ax.set_yticklabels([f'{tick:.2f}' for tick in cbar3_ticks])
-    
-    plt.xlim(lower, upper)
+    # axs[2].set_xlim(lower, upper)
     fig.supxlabel('time')
-    
-    plt.tight_layout()
-    # plt.show()
+    for ax in axs:
+        ax.tick_params(labelsize=12)
+    # --- Set x-ticks to just the left and right extremes, labeled in seconds ---
+    # The x-axis indices correspond to timesteps, so [0, true_states.shape[1]-1]
+    # The labels should be the values of 'lower' and 'upper', divided by frame rate if needed.
+    # But here, just use 'lower' and 'upper' as the time values in timesteps.
+    for ax in axs:
+        ax.set_xticks([0, true_states.shape[1] - 1])
+        # Label as time in seconds if possible (if fHMM_model has frame rate info)
+        frame_rate = fHMM_model['hypers'].get('frame_rate', None)
+        if frame_rate is not None:
+            left_label = f"{lower / frame_rate:.2f}"
+            right_label = f"{(upper-1) / frame_rate:.2f}"
+            ax.set_xticklabels([left_label, right_label], fontsize=FNTSZ)
+            ax.set_xlabel('time (s)')
+        else:
+            ax.set_xticklabels([str(lower), str(upper-1)], fontsize=FNTSZ)
+            ax.set_xlabel('time')
+    # Apply tight layout to the figure with padding
+    # fig.tight_layout(pad=1.0)
     
 def getList(dictionary):
     """
@@ -501,8 +532,8 @@ def plot_trans_matrix(gen_trans_mat):
           plt.xticks(range(0, num_states), np.arange(num_states)+1, fontsize=10)
           plt.yticks(range(0, num_states), np.arange(num_states)+1, fontsize=10)
           plt.ylim(num_states - 0.5, -0.5)
-          plt.ylabel("state t", fontsize = 15)
-          plt.xlabel("state t+1", fontsize = 15)
+          plt.ylabel("state t", fontsize = 12)
+          plt.xlabel("state t+1", fontsize = 12)
 
 def find_plateau_point(scores, start_monitor=10, window=5, patience=5):
     """
@@ -660,7 +691,7 @@ def compute_scores_pca_fa(X, n_components=None, method='max',patience=5):
                 if method=='max':
                     current_best_index_pca = current_best_index_pca_max
                 elif method=='elbow':
-                    current_best_index_pca = find_elbow_point(pca_scores)
+                    current_best_index_pca = find_elbow_point(pca_scores)-1
                     current_best_index_pca = np.min([current_best_index_pca,current_best_index_pca_max])
                 current_best_n_pca = tested_n_pca[current_best_index_pca]
                 if best_n_pca is not None and current_best_n_pca == best_n_pca:
@@ -679,7 +710,7 @@ def compute_scores_pca_fa(X, n_components=None, method='max',patience=5):
                 if method=='max':
                     current_best_index_fa = current_best_index_fa_max
                 elif method=='elbow':
-                    current_best_index_fa = find_elbow_point(fa_scores)
+                    current_best_index_fa = find_elbow_point(fa_scores)-1
                     current_best_index_fa = np.min([current_best_index_fa,current_best_index_fa_max])
                 current_best_n_fa = tested_n_fa[current_best_index_fa]
                 if best_n_fa is not None and current_best_n_fa == best_n_fa:
@@ -719,23 +750,20 @@ def save_cv_scores_plot_pca_fa(pca_scores, fa_scores, n_components_pca, n_compon
     title : str, optional
         Title for the plot.
     """
-    plt.figure()
-    
-    # New code:
-    plt.plot(tested_n_pca, pca_scores, "b", label="PCA scores")
-    plt.plot(tested_n_fa, fa_scores, "r", label="FA scores")
-    plt.axvline(n_components_pca, color="b", label=f"PCA CV: {n_components_pca}", linestyle="--")
-    plt.axvline(n_components_fa, color="r", label=f"FactorAnalysis CV: {n_components_fa}", linestyle="--")
-    plt.xlabel("nb of components")
-    plt.ylabel("CV VarExp")
-    # plt.ylabel("CV scores")
-    plt.legend(loc="lower right")
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3))
+    ax.plot(tested_n_pca, pca_scores, "b", label="PCA scores")
+    ax.plot(tested_n_fa, fa_scores, "r", label="FA scores")
+    ax.axvline(n_components_pca, color="b", label=f"PCA CV: {n_components_pca}", linestyle="--")
+    ax.axvline(n_components_fa, color="r", label=f"FactorAnalysis CV: {n_components_fa}", linestyle="--")
+    ax.set_xlabel("nb of components")
+    ax.set_ylabel("CV VarExp")
+    ax.legend(loc="lower right")
     if title:
-        plt.title(title)
+        ax.set_title(title)
+    ax.tick_params(labelsize=12)
     plt.tight_layout()
-    # plt.show()
-    plt.savefig(file_save, format="pdf")
-    plt.close()
+    fig.savefig(file_save, format="pdf")
+    plt.close(fig)
 
 def compute_scores_ica(X, n_components=None, patience=5):
     """
@@ -879,24 +907,26 @@ def compute_hwhm(acf):
 
 def plot_autocorrelations_with_timescale(matrix,file_save=None,OptLeg=True):
     """Plot the autocorrelations of each time series in the matrix and annotate with HWHM."""
-    fig=plt.figure(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(FIG2_3, FIG2_3 * 0.6))
     timescales = []
     for i in range(matrix.shape[0]):
         acf = autocovariance_torch(matrix[i])
         timescale = compute_hwhm(acf)
         timescales.append(timescale)
-        plt.plot(acf, label=f"Series {i+1} (Timescale: {timescale})")
-    plt.legend() if OptLeg else None
-    plt.xlabel("Lag")
-    plt.ylabel("Autocorrelation")
-    plt.title("Autocorrelation of Time Series with Timescales")
-    plt.xlim([0, np.max(timescales)*10])
+        ax.plot(acf, label=f"Series {i+1} (Timescale: {timescale})")
+    if OptLeg:
+        ax.legend()
+    ax.set_xlabel("Lag")
+    ax.set_ylabel("Autocorrelation")
+    ax.set_title("Autocorrelation of Time Series with Timescales")
+    ax.set_xlim([0, np.max(timescales)*3])
+    ax.tick_params(labelsize=FNTSZ)
+    plt.tight_layout()
     if file_save is not None:
-        plt.savefig(file_save+'AutocorrTimescales.pdf')
+        fig.savefig(file_save+'AutocorrTimescales.pdf')
     else:
-        plt.savefig('fig_modelsel/AutocorrTimescales.pdf')
-    # plt.show()
-    plt.close()
+        fig.savefig('fig_modelsel/AutocorrTimescales.pdf')
+    plt.close(fig)
     return timescales, fig
 
 
@@ -999,7 +1029,20 @@ def xval_func(data_in,num_states0):
     mle_hmm = HMM(num_states0, obs_dim, 
           observations="gaussian", transitions="standard")
     #fit on training data
-    hmm_lls = mle_hmm.fit(training_data, method="em", num_iters=N_iters, tolerance=TOL)                
+    # hmm_lls = mle_hmm.fit(training_data, method="em", num_iters=N_iters, tolerance=TOL)  
+
+    # try standard EM fit, catch any non–PD covariance
+    from numpy.linalg import LinAlgError
+    try:
+        hmm_lls = mle_hmm.fit(training_data, method="em", num_iters=N_iters, tolerance=TOL)
+    except LinAlgError:
+        # add tiny diagonal jitter to each state's covariance and retry once
+        D = mle_hmm.observations.D
+        for k in range(mle_hmm.K):
+            mle_hmm.observations._sqrt_Sigmas[k] += np.eye(D) * 1e-6
+        hmm_lls = mle_hmm.fit(training_data, method="em", num_iters=N_iters, tolerance=TOL)
+
+
     # Compute log-likelihood for each dataset
     out['ll_training'] = mle_hmm.log_likelihood(training_data)/nTrain
     out['ll_heldout'] = mle_hmm.log_likelihood(test_data)/nTest
@@ -1185,14 +1228,12 @@ def visualize_corr_matrix(corr_matrix, option='nan_diag',option_annot=False):
     Returns:
         fig (matplotlib.figure.Figure): Figure object of the heatmap.
     """
-    fig = plt.figure(figsize=(10, 10))
-    
-    # Only visualize the off-diagonal terms if option is not 'diag'
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3))
     if option == 'nan_diag':
         np.fill_diagonal(corr_matrix, np.nan)
-    
-    sns.heatmap(corr_matrix, annot=option_annot, fmt=".2f",center=0, cmap='coolwarm', square=True)
-    
+    sns.heatmap(corr_matrix, annot=option_annot, fmt=".2f", center=0, cmap='coolwarm', square=True, ax=ax)
+    ax.tick_params(labelsize=FNTSZ)
+    plt.tight_layout()
     return fig
 
 
@@ -1264,10 +1305,11 @@ def find_most_meaningful_interval(num_clusters,correlation_matrix):
 
 
 
-def model_sel_ICA(emissions_data,MAX_runs=50,file_save=None,method='plateau'):
+def model_sel_ICA(emissions_data,MAX_runs=50,file_save=None,method='elbow'):
     # Define the range of components to be tested
     MAX,count,old_optimal_n_components=MAX_runs,0,0
     average_variances = []
+    new_optimal_n_components = None
     for n_components in range(1,MAX):
           average_variance = cross_validate_components(n_components, emissions_data)
           average_variances.append(average_variance)
@@ -1285,30 +1327,34 @@ def model_sel_ICA(emissions_data,MAX_runs=50,file_save=None,method='plateau'):
                     if count>10:
                               break
                     old_optimal_n_components=new_optimal_n_components
+    if new_optimal_n_components is None:
+        if average_variances:
+            new_optimal_n_components = find_elbow_point(average_variances)
+        else:
+            new_optimal_n_components = 1
     optimal_n_components=new_optimal_n_components
     max_n_components=n_components
 
-    print("Optimal number of components based on the plateau method:", optimal_n_components)
+    print(f"Optimal number of components based on the {method}:", optimal_n_components)
 
-    # Plotting the scores
-    n_factors_range=np.arange(max_n_components)+1
-    plt.figure(figsize=(10, 6))
-    plt.plot(n_factors_range, average_variances, marker='o')
-    plt.axvline(optimal_n_components, color="r", label=f"optimal n: {optimal_n_components}", linestyle="--")
-    # Plot the first derivative for reference.
+    # Plotting the scores (Neuron‐ready, 1/3 letter‐width, fontsize=20)
+    n_factors_range = np.arange(max_n_components) + 1
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3 * 0.75), constrained_layout=True)
+    ax.plot(n_factors_range, average_variances, marker='o', color='C0', linewidth=2, label='CV score')
+    ax.axvline(optimal_n_components, color='C1', linestyle='--', linewidth=2, label=f'Optimal = {optimal_n_components}')
     deriv = np.diff(average_variances)
-    plt.plot(n_factors_range[1:], deriv, "o-", color="k", label="Derivative")
-    plt.xlabel('Number of Factors')
-    plt.ylabel('Cross-Validated Score')
-    plt.title('Number of Sources vs. Cross-Validated Score')
-    plt.grid(True)
-    plt.legend()
+    ax.plot(n_factors_range[1:], deriv, marker='s', color='C2', linewidth=2, label='Derivative')
+    ax.set_xlabel('Number of Factors', fontsize=FNTSZ)
+    ax.set_ylabel('Cross-Validated Score', fontsize=FNTSZ)
+    ax.set_title('Number of Sources vs. CV Score', fontsize=FNTSZ)
+    ax.tick_params(labelsize=FNTSZ)
+    ax.grid(True)
+    ax.legend(fontsize=FNTSZ)
     if file_save is not None:
-        plt.savefig(file_save+'.pdf')
+        fig.savefig(file_save + '.pdf', bbox_inches='tight')
     else:
-        plt.savefig('fig_modelsel/ModelSel_ICA.pdf')
-    # plt.show()
-    # plt.close()
+        fig.savefig('fig_modelsel/ModelSel_ICA.pdf', bbox_inches='tight')
+    plt.close(fig)
 
     ica = FastICA(n_components=optimal_n_components, random_state=0)
     ica.fit(emissions_data)
@@ -1317,25 +1363,31 @@ def model_sel_ICA(emissions_data,MAX_runs=50,file_save=None,method='plateau'):
     ica_mean = ica.mean_
     
     # compare ICA fit and original data
-    # Plot the reconstructed data
-    nplots=optimal_n_components
-    plot_length=np.min([300,emissions_data.shape[0]])
-    fig, axes = plt.subplots(nplots, 1, figsize=(8, 12))
-    data_rec=factors@ica_mixing.T+ica_mean
+    # Plot the reconstructed data (Neuron‐ready, 2/3 letter‐width, fontsize=20)
+    nplots = optimal_n_components
+    plot_length = np.min([300, emissions_data.shape[0]])
+    fig, axes = plt.subplots(
+        nplots, 1, sharex=True,
+        figsize=(FIG2_3, FIG2_3 * 0.8),  # double the height
+        constrained_layout=True
+    )
+    data_rec = factors @ ica_mixing.T + ica_mean
     for idx in range(nplots):
-          axes[idx].plot(data_rec[:plot_length, idx], alpha=0.5, label=f'Fit')
-          axes[idx].plot(emissions_data[:plot_length, idx], alpha=0.5,label=f'Data')
-          axes[idx].legend()
-#     plt.xlim([1,plot_length])
-    plt.tight_layout()
+        ax = axes[idx] if nplots > 1 else axes
+        ax.plot(data_rec[:plot_length, idx], color='C0', linewidth=2, label='Fit')
+        ax.plot(emissions_data[:plot_length, idx], color='C1', linewidth=2, label='Data')
+        ax.set_ylabel(f'ICA{idx+1}', fontsize=FNTSZ) if idx == 0 else None
+        ax.tick_params(labelsize=FNTSZ)
+        if idx == 0:
+            ax.legend(fontsize=FNTSZ, loc='upper right')
+    axes[-1].set_xlabel('Time (samples)', fontsize=FNTSZ)
     if file_save is not None:
-        plt.savefig(file_save+'_reconstruction.pdf')
+        fig.savefig(file_save + '_reconstruction.pdf', bbox_inches='tight')
     else:
-        plt.savefig('fig_modelsel/ModelSel_ICA_reconstruction.pdf')
-    # plt.show()
+        fig.savefig('fig_modelsel/ModelSel_ICA_reconstruction.pdf', bbox_inches='tight')
+    plt.close(fig)
 
     return ica,optimal_n_components,n_factors_range,average_variances
-    # plt.close()
 
 
 def fit2sources_findNumStates(factors,option='HMM',file_save=None):
@@ -1343,28 +1395,41 @@ def fit2sources_findNumStates(factors,option='HMM',file_save=None):
         N = factors.shape[1]
         # Parallelize across features
         results = Parallel(n_jobs=-1)(delayed(find_best_k)(factors[:, n].reshape(-1, 1),option) for n in range(N))
-        n_states=[results[i]['best_k'] for i in range(len(results))]
+
+        n_states = [results[i]['best_k'] for i in range(len(results))]
 
         # Plotting
-        _,N=factors.shape
-        fig, axes = plt.subplots(1, N, figsize=(N*5, 4), sharey=True)
-        fig.suptitle('Best K using K-Fold Cross-Validation')
+        _, N = factors.shape
+        fig, axes = plt.subplots(
+            1, N,
+            figsize=(FIG1_3 * N, FIG1_3),
+            sharey=True,
+            constrained_layout=True
+        )
+        fig.suptitle('Best K using K-Fold Cross-Validation', fontsize=FNTSZ)
         for n, result in enumerate(results):
-                axes[n].plot(range(1, len(result['log_likelihoods'])+1), result['log_likelihoods'], marker='o', linestyle='-')
-                axes[n].axvline(x=result['best_k'], color='r', linestyle='--', label=f'Best K = {result["best_k"]}')
-                axes[n].set_title(f'Feature {n+1}')
-                axes[n].set_xlabel('Number of '+option+' States (K)')
-                axes[n].set_ylabel('Log-likelihood')
-                axes[n].legend()
+            axes[n].plot(
+                range(1, len(result['log_likelihoods']) + 1),
+                result['log_likelihoods'],
+                marker='o',
+                linestyle='-'
+            )
+            axes[n].axvline(
+                x=result['best_k'],
+                color='r',
+                linestyle='--',
+                label=f'Best K = {result["best_k"]}'
+            )
+            axes[n].set_title(f'Feature {n+1}', fontsize=FNTSZ)
+            axes[n].set_xlabel(f'Number of {option} States (K)', fontsize=FNTSZ)
+            axes[n].set_ylabel('Log-likelihood', fontsize=FNTSZ)
+            axes[n].tick_params(labelsize=FNTSZ)
+            axes[n].legend(fontsize=FNTSZ)
 
-        plt.tight_layout(rect=[0, 0, 1, 0.95])
-        if file_save is not None:
-            plt.savefig(file_save+'ModelSel_'+option+'BestK.pdf')
-        else:
-            plt.savefig('fig_modelsel/'+'ModelSel_'+option+'BestK.pdf')
-        plt.show()  
-        # plt.close()
-        return results,n_states
+        save_path = (file_save + 'ModelSel_' + option + 'BestK.pdf') if file_save else 'fig_modelsel/ModelSel_' + option + 'BestK.pdf'
+        fig.savefig(save_path, format='pdf', bbox_inches='tight')
+        plt.close(fig)
+        return results, n_states
 
 
 
@@ -1400,43 +1465,47 @@ def fit_GMM2sources_findNumStates(factors):
 
 
 # fit hmm to each factor, extract one-hot state posterior prob
-def fit_hmm_after_gmm(factors,n_states,timescales=None,file_save=None):
-          out=[]
-          data=factors
-          _,N=data.shape
-          obs_dim=1
-        #   posteriors = Parallel(n_jobs=-1)(delayed(single_hmm)(data[:, neuron].reshape(-1, 1),obs_dim,num_states) for (neuron,num_states) in zip(range(data.shape[1]),n_states))
-          out = Parallel(n_jobs=-1)(delayed(single_hmm)(data[:, neuron].reshape(-1, 1), obs_dim, num_states) for neuron, num_states in zip(range(data.shape[1]), n_states))
+def fit_hmm_after_gmm(factors, n_states, timescales=None, file_save=None):
+    out = []
+    data = factors
+    _, N = data.shape
+    obs_dim = 1
+    out = Parallel(n_jobs=-1)(
+        delayed(single_hmm)(data[:, neuron].reshape(-1, 1), obs_dim, num_states)
+        for neuron, num_states in zip(range(data.shape[1]), n_states)
+    )
 
-          fig = plt.figure(figsize=(N*5, 5), dpi=80, facecolor='w', edgecolor='k')
-          fig.suptitle('Factor time series vs HMM prob')
-          for neuron in range(N):
-                    posterior_probs=out[neuron]['posterior_probs']
-                    mus=out[neuron]['mus']
-                    state_seq=np.argmax(posterior_probs,axis=1)
-                    plt.subplot(1,N,neuron+1)
-                    for k in range(n_states[neuron]):
-                            #   plt.plot(np.arange(len(posterior_probs)),posterior_probs[:,k], label="State " + str(k + 1), lw=2)
-                              plt.plot(np.arange(len(posterior_probs)),factors[:, neuron], label="factor " + str(neuron), lw=2)
-                              plt.plot(np.arange(len(posterior_probs)),mus[state_seq], label="exp values", lw=5)
-                              # plt.ylim((-0.05, 1.05))
-                              if timescales is not None:
-                                plt.xlim((1000, 1000+timescales[neuron]*20))
-                                plt.title(f"states={n_states[neuron]},tau={timescales[neuron]}", fontsize = 15)
-                              else:
-                                plt.title(f"states={n_states[neuron]}", fontsize = 15)
-                                plt.xlim((1000, 1300))
-                              # plt.yticks([0, 0.5, 1], fontsize = 10)
-                              plt.xlabel("trial #", fontsize = 15)
-                              plt.ylabel("p(state)", fontsize = 15)
-          plt.tight_layout()
-          if file_save is not None:
-            plt.savefig(file_save+'ModelSel_HMMonICASources.pdf')
-          else:
-            plt.savefig('fig_modelsel/ModelSel_HMMonICASources.pdf')
-        #   plt.show()
-        #   plt.close()
-          return out
+    fig, axes = plt.subplots(
+        N, 1,
+        figsize=(FIG2_3, FIG2_3 * 0.8),
+        constrained_layout=True,
+        sharex=True
+    )
+    if N == 1:
+        axes = [axes]
+    fig.suptitle('Factor time series vs HMM prob', fontsize=FNTSZ)
+    for neuron, ax in enumerate(axes):
+        posterior_probs = out[neuron]['posterior_probs']
+        mus = out[neuron]['mus']
+        state_seq = np.argmax(posterior_probs, axis=1)
+        ax.plot(np.arange(len(posterior_probs)), factors[:, neuron], label=f'Factor {neuron+1}', lw=2)
+        ax.plot(np.arange(len(posterior_probs)), mus[state_seq], label='Expected', lw=2)
+        # x-axis limits
+        if timescales is not None:
+            ax.set_xlim(1000, 1000 + timescales[neuron] * 20)
+            ax.set_title(f"states={n_states[neuron]}, τ={timescales[neuron]}", fontsize=FNTSZ)
+        else:
+            ax.set_xlim(1000, 1300)
+            ax.set_title(f"states={n_states[neuron]}", fontsize=FNTSZ)
+        ax.set_ylabel(f"ICA", fontsize=FNTSZ)
+        ax.tick_params(labelsize=FNTSZ)
+        ax.legend(fontsize=FNTSZ, loc='upper right')
+    axes[-1].set_xlabel("Trial #", fontsize=FNTSZ)
+    # Save figure
+    save_path = (file_save + 'ModelSel_HMMonICASources.pdf') if file_save else 'fig_modelsel/ModelSel_HMMonICASources.pdf'
+    fig.savefig(save_path, format='pdf', bbox_inches='tight')
+    plt.close(fig)
+    return out
 
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -1459,10 +1528,10 @@ def infer_timescales(factors, min_clusters=1, max_clusters=10,file_save=None,Opt
         optimal_n_timescales (int): Optimal number of clusters.
     """
 
-    timescales, fig = plot_autocorrelations_with_timescale(factors.T,file_save=file_save,OptLeg=OptLeg)
-    ax = fig.axes[0]  # Access the first axes
-    ax.set_xlim([0, 10 * np.max(timescales)])  # Set the x-axis limits
-    # print("Timescales:", timescales)
+    timescales, fig = plot_autocorrelations_with_timescale(factors.T, file_save=file_save, OptLeg=OptLeg)
+    ax = fig.axes[0]
+    ax.set_xlim([0, 10 * np.max(timescales)])
+    ax.tick_params(labelsize=12)
 
     # Step 1: Log Transformation
     log_timescales = np.log(timescales)
@@ -1494,7 +1563,13 @@ def infer_timescales(factors, min_clusters=1, max_clusters=10,file_save=None,Opt
 
     # Step 5: Find the optimal number of clusters
     if silhouette_avg_scores:
-        optimal_n_timescales = max(range_n_clusters, key=lambda i: silhouette_avg_scores[i - start_cluster])
+        # Find elbow index (1-based) for silhouette scores, convert to 0-based
+        elbow_idx = find_elbow_point(silhouette_avg_scores) - 1
+        # Map to actual cluster count in range_n_clusters
+        if 0 <= elbow_idx < len(range_n_clusters):
+            optimal_n_timescales = range_n_clusters[elbow_idx]
+        else:
+            optimal_n_timescales = min_clusters
     else:
         optimal_n_timescales = min_clusters  # Default to minimum if no valid clustering found
 
@@ -1514,21 +1589,48 @@ def infer_timescales(factors, min_clusters=1, max_clusters=10,file_save=None,Opt
     # print(f"Labels: {labels}")
     # print(f"Timescales: {timescales}")
 
-    # Step 7: Plot results
-    plt.figure(figsize=(10, 6))
-    plt.plot(range_n_clusters, silhouette_avg_scores, marker='o', linestyle='-')
-    plt.title('KMeans Silhouette Scores to Determine Optimal Timescale Cluster Number')
-    plt.xlabel('Number of Timescale Clusters')
-    plt.ylabel('Silhouette Score')
-    plt.axvline(x=optimal_n_timescales, color='red', linestyle='--', label=f'Optimal: {optimal_n_timescales} Clusters')
-    plt.legend()
-    plt.grid(True)
-    if file_save is not None:
-        plt.savefig(file_save+'AutocorrTimescales_Clusters.pdf')
-    else:
-        plt.savefig('fig_modelsel/AutocorrTimescales_Clusters.pdf')
-    plt.close()
-    # plt.show()
+    
+        # Step 7: Plot results (Neuron‐ready, 1/3 letter‐width, fontsize=20)
+    fig2, ax2 = plt.subplots(figsize=(FIG1_3, FIG1_3), constrained_layout=True)
+    ax2.plot(
+        range_n_clusters,
+        silhouette_avg_scores,
+        marker='o',
+        linestyle='-',
+        color='C2',
+        linewidth=2
+    )
+    ax2.axvline(
+        x=optimal_n_timescales,
+        color='C3',
+        linestyle='--',
+        linewidth=2,
+        label=f'Optimal = {optimal_n_timescales}'
+    )
+    ax2.set_title(
+        'Timescale Clusters (silhouette)',
+        fontsize=FNTSZ
+    )
+    ax2.set_xlabel(
+        'Number of clusters',
+        fontsize=FNTSZ
+    )
+    ax2.set_ylabel(
+        'Silhouette score',
+        fontsize=FNTSZ
+    )
+    ax2.tick_params(
+        axis='both', which='major',
+        labelsize=FNTSZ
+    )
+    ax2.legend(loc='best', fontsize=FNTSZ)
+    # Only show first and last cluster numbers as x-ticks
+    ax2.set_xticks([range_n_clusters[0], range_n_clusters[-1]])
+    ax2.set_xticklabels([str(range_n_clusters[0]), str(range_n_clusters[-1])], fontsize=FNTSZ)
+    # Save
+    fname = (file_save + 'AutocorrTimescales_Clusters.pdf') if file_save else 'fig_modelsel/AutocorrTimescales_Clusters.pdf'
+    fig2.savefig(fname, dpi=300)
+    plt.close(fig2)
 
     return timescales, labels, optimal_n_timescales
 
@@ -1620,7 +1722,7 @@ def select_least_correlated_features(correlation_matrix,threshold=0.9,threshold_
 
     # Step 2: Sort groups from smallest to largest (by group size)
     correlated_groups.sort(key=len)
-
+    print(correlated_groups)
     # Step 3: Identify the best feature in each group
     features_to_keep = set(range(num_features))  # Start by keeping all features
 
@@ -1640,7 +1742,7 @@ def select_least_correlated_features(correlation_matrix,threshold=0.9,threshold_
         # Keep only the selected feature
         features_to_keep -= group
         features_to_keep.add(best_feature)
-
+    print(features_to_keep)
     # ===================== Additional Condition =====================
 
     # Step 4: Identify groups with correlation < -threshold among features_to_keep
@@ -1695,25 +1797,27 @@ def cluster_hmm(correlation_matrix,data_factors_to_keep,file_save=None,threshold
         Z_communities.append(Z1)
         mean_corr_communities.append(cluster_averages)
 
-    # Plotting results
-    plt.figure(figsize=(8, 4))
-    plt.plot(thresholds, num_communities, marker='o')
-    plt.xlabel('Threshold=(corr+1)')
-    plt.ylabel('Number of Communities')
-    plt.title('Number of Overlapping Communities vs. Threshold Level')
-    plt.grid(True)
-    if file_save is not None:
-        plt.savefig(file_save+'ModelSel_reducedHMMcommunities_search.pdf')
-    else:
-        plt.savefig('fig_modelsel/ModelSel_reducedHMMcommunities_search.pdf')
-    # plt.show()
-    # plt.close()
+    # Neuron-ready line plot: Number of Communities vs Threshold
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3 * 0.75), constrained_layout=True)
+    ax.plot(thresholds-1, num_communities, marker='o', color='C0', linewidth=2)
+    ax.set_xlabel('Threshold (corr)', fontsize=FNTSZ)
+    ax.set_ylabel('Number of Communities', fontsize=FNTSZ)
+    ax.set_title('Number of Overlapping Communities vs Threshold', fontsize=FNTSZ)
+    ax.grid(True)
+    # Show only start and end x-ticks
+    ax.set_xticks([thresholds[0]-1, thresholds[-1]-1])
+    ax.set_xticklabels([f'{thresholds[0]-1:.2f}', f'{thresholds[-1]-1:.2f}'], fontsize=FNTSZ)
+    ax.tick_params(axis='both', labelsize=FNTSZ)
+    save_path = file_save + 'ModelSel_reducedHMMcommunities_search.pdf' if file_save else 'fig_modelsel/ModelSel_reducedHMMcommunities_search.pdf'
+    fig.savefig(save_path, format='pdf', bbox_inches='tight')
+    plt.close(fig)
     # Apply the revised function
     longest_start_meaningful, longest_end_meaningful, n_clusters_meaningful = find_most_meaningful_interval(
         num_communities,correlation_matrix)
     # Select a threshold from the end of the most meaningful interval for visualization
     # midpoint_meaningful = (longest_start_meaningful + longest_end_meaningful) // 2
     selected_threshold_meaningful = thresholds[longest_start_meaningful]-1
+    # selected_threshold_meaningful = thresholds[longest_end_meaningful]-1
 
     # alternative, select threshold by hand
     if threshold_choice is not None:
@@ -1747,26 +1851,36 @@ def cluster_hmm(correlation_matrix,data_factors_to_keep,file_save=None,threshold
     for key, value in data_factors_to_keep_filtered.items():
         data_factors_to_keep_filtered[key] = value[indices_keep]
 
-    # dendrogram before pruning the communinities
+    # Compute threshold values for overlay
+    threshold_dist = thresholds[longest_start_meaningful]
+    # threshold_dist = selected_threshold_meaningful
+    threshold_corr = threshold_dist - 1
+    # threshold_corr = selected_threshold_meaningful
+
+    # Neuron-ready dendrogram of HMM state clustering
     labels_hmm = [f'({factor_idx}, {state_idx})' for (factor_idx, state_idx) in zip(data_factors_to_keep['factor'], data_factors_to_keep['state'])]
-    # Plotting the dendrogram
-    plt.figure(figsize=(8, 4))
-    dendrogram(Z_communities_meaningful,labels=labels_hmm)
-    plt.xticklabels=labels_hmm
-    plt.title("Dendrogram for Hierarchical Clustering before pruning communities")
-    plt.xlabel("Factors")
-    plt.ylabel("Distance")
-    plt.axhline(y=selected_threshold_meaningful+1, color='r', linestyle='--')
-    plt.text(x=0, y=selected_threshold_meaningful+1, s=f' corr threshold= {selected_threshold_meaningful:.2f}', color='red')
-    # Shift y-axis ticks
-    plt.gca().set_yticklabels([f'{float(tick.get_text()) - 1:.2f}' for tick in plt.gca().get_yticklabels()])
-    # plt.show()
-    if file_save is not None:
-        plt.savefig(file_save+'ModelSel_HMMdendrogram.pdf')
-    else:
-        plt.savefig('fig_modelsel/ModelSel_HMMdendrogram.pdf')
-    # plt.close()
-    # plt.show()
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3 * 0.75), constrained_layout=True)
+    dendrogram(Z_communities_meaningful, labels=labels_hmm, ax=ax, color_threshold=None)
+    ax.set_title('HMM State Clustering Dendrogram', fontsize=FNTSZ)
+    ax.set_xlabel('Factors', fontsize=FNTSZ)
+    # Set y-axis to show correlation values instead of distance
+    yticks = ax.get_yticks()
+    ax.set_ylabel('Correlation', fontsize=FNTSZ)
+    ax.set_yticklabels([f'{ytick-1:.2f}' for ytick in yticks], fontsize=FNTSZ)
+    # Overlay threshold line and label
+    ax.axhline(y=threshold_dist, color='red', linestyle='--', linewidth=2)
+    ax.text(ax.get_xlim()[0] + 0.05*(ax.get_xlim()[1]-ax.get_xlim()[0]),
+            threshold_dist,
+            f'Threshold (corr) = {threshold_corr:.2f}',
+            color='red',
+            fontsize=FNTSZ,
+            va='bottom')
+    # Remove x-tick labels to reduce clutter
+    ax.set_xticks([])
+    ax.tick_params(axis='both', labelsize=FNTSZ)
+    save_path = file_save + 'ModelSel_HMMdendrogram.pdf' if file_save else 'fig_modelsel/ModelSel_HMMdendrogram.pdf'
+    fig.savefig(save_path, format='pdf', bbox_inches='tight')
+    plt.close(fig)
 
     return id_communities,mean_corr_communities,data_factors_to_keep_filtered
 
@@ -1835,7 +1949,7 @@ def reconstruct_parameters(id_communities,data_factors_to_keep,ica):
     return means,posteriors_rec_reformatted,transitions,init
 
 
-def compare_reconstructed_true(means_rec, posteriors_rec, data):
+def compare_reconstructed_true(means_rec, posteriors_rec, data,file_save):
     """
     Compare the reconstructed parameters with the true fHMM parameters.
     
@@ -1855,7 +1969,7 @@ def compare_reconstructed_true(means_rec, posteriors_rec, data):
     num_states_per_factor = [tm.shape[0] for tm in transition_matrices]  # Extract different num_states per factor
 
     # Construct one-hot encoding for true states, now handling variable num_states per factor
-    true_states = data['true_states'] if 'true_states' in data else data['fHMM_data']['true_states']
+    true_states = data['true_states']
     flat_one_hot_states = []
     state_factors = []  # Track the factor each state belongs to
 
@@ -1876,22 +1990,27 @@ def compare_reconstructed_true(means_rec, posteriors_rec, data):
         for flat_idx in range(flat_one_hot_states.shape[1]):
             correlation_matrix[factor_idx, flat_idx] = np.corrcoef(posteriors_conc[:, factor_idx], flat_one_hot_states[:, flat_idx])[0, 1]
 
-    fig = visualize_corr_matrix(correlation_matrix,option=False)
-    ax = fig.gca()
-    ax.set_title('Correlation True vs Reconstructed posteriors')
-    ax.set_ylabel('Reconstructed states')
-    ax.set_xlabel('True States')
-    # Set x-axis tick labels with corresponding factor indices
-    xtick_labels = [f"F{state_factors[i]}-S{i}" for i in range(len(state_factors))]
-    ax.set_xticks(range(len(state_factors)))
-    ax.set_xticklabels(xtick_labels, rotation=90)
-    plt.savefig('fig_modelsel/GroundTruth_compare_posteriors.pdf')
+    # fig = visualize_corr_matrix(correlation_matrix,option=False)
+    # ax = fig.gca()
+    # ax.set_title('Correlation True vs Reconstructed posteriors')
+    # ax.set_ylabel('Reconstructed states')
+    # ax.set_xlabel('True States')
+    # # Set x-axis tick labels with corresponding factor indices
+    # xtick_labels = [f"F{state_factors[i]}-S{i}" for i in range(len(state_factors))]
+    # ax.set_xticks(range(len(state_factors)))
+    # ax.set_xticklabels(xtick_labels, rotation=90)
+
+    # fig.savefig(file_save+'States.pdf', format="pdf")
+    # plt.close(fig)
+
+
 
     # Iterative matching procedure with index tracking
     unmatched_factors = list(range(num_factors_FA))
     unmatched_states = list(range(flat_one_hot_states.shape[1]))
     matched_pairs = []
 
+    tot_matched_corr=[]
     while unmatched_factors and unmatched_states:
         # Find the highest correlation in the reduced matrix
         highest_corr = -np.inf
@@ -1909,11 +2028,40 @@ def compare_reconstructed_true(means_rec, posteriors_rec, data):
         # Match the factor and state
         # matched_pairs.append((best_factor, best_true, highest_corr))
         matched_pairs.append((best_factor, best_true, highest_corr, true_factor))
-
+        tot_matched_corr.append(highest_corr)
         # Remove matched factor and state from lists
         unmatched_factors.remove(best_factor)
         unmatched_states.remove(best_true)
         print(f'unmatched_factors {unmatched_factors}')
+
+
+    # --- reorder rows/cols to align matched pairs on the diagonal ---
+    rec_order = [pair[0] for pair in matched_pairs]
+    true_order = [pair[1] for pair in matched_pairs]
+    # sorted correlation matrix
+    C_sorted = correlation_matrix[np.ix_(rec_order, true_order)]
+    # build labels "(chain,state)" from flat index
+    true_labels = [f"F{state_factors[idx]}-S{idx}" for idx in true_order]
+    rec_labels  = [f"F{state_factors[idx]}-S{idx}" for idx in rec_order]
+    # plot sorted heatmap
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3), constrained_layout=True)
+    sns.heatmap(
+        C_sorted,
+        cmap='coolwarm',
+        center=0,
+        square=True,
+        cbar_kws={'shrink': 0.5},
+        xticklabels=true_labels,
+        yticklabels=rec_labels,
+        ax=ax
+    )
+    ax.set_title(f'True vs. Fit Posteriors: {np.mean(tot_matched_corr):.3f} ± {np.std(tot_matched_corr):.3f}', fontsize=FNTSZ)
+    ax.set_ylabel('Reconstructed (chain,state)', fontsize=FNTSZ)
+    ax.set_xlabel('True (chain,state)', fontsize=FNTSZ)
+    ax.tick_params(labelsize=FNTSZ, rotation=90)
+    fig.savefig(file_save + 'Posteriors.pdf', format='pdf', bbox_inches='tight')
+    plt.close(fig)
+
 
     # Calculate correlation between true and reconstructed emission means
     means_conc_true = np.concatenate(true_means, axis=0)  # True means, flattened across factors
@@ -1930,40 +2078,235 @@ def compare_reconstructed_true(means_rec, posteriors_rec, data):
         cnt += 1
         plot_matrix[:, cnt] = means_conc_rec[matched_pairs[i][0]]
         cnt += 3  # Leave space between pairs
+    print(means_conc_true)
+    print(means_conc_rec)
 
+    # fig = plt.figure(figsize=(10, 10))
+    # im = plt.imshow(plot_matrix, aspect='auto', cmap='bwr', vmin=-np.max(np.abs(plot_matrix)), vmax=np.max(np.abs(plot_matrix)))
+    # plt.title('ICA-reconstructed (left) vs True (right) emission means')
 
-    fig = plt.figure(figsize=(10, 10))
-    im = plt.imshow(plot_matrix, aspect='auto', cmap='bwr', vmin=-np.max(np.abs(plot_matrix)), vmax=np.max(np.abs(plot_matrix)))
-    plt.title('ICA-reconstructed (left) vs True (right) emission means')
-    plt.colorbar(im, extend='both')
-    plt.savefig('fig_modelsel/ICAvsTrueemissions.pdf')
-    plt.close()
+    # plt.colorbar(im, extend='both')
+    # fig.savefig(file_save+'ICAvsTrueemissions.pdf', format="pdf")
+    # plt.close(fig)
+
+    # --- Neuron‐style heatmap of Emission Means comparison ---
+    abs_max = np.max(np.abs(plot_matrix))
+    fig, ax = plt.subplots(figsize=(FIG1_3, FIG1_3), constrained_layout=True)
+    sns.heatmap(
+        plot_matrix,
+        cmap='bwr',
+        vmin=-abs_max,
+        vmax=abs_max,
+        cbar_kws={'shrink': 0.5},
+        xticklabels=False,
+        yticklabels=False,
+        ax=ax
+    )
+    ax.set_title(f'True(L) vs. Fit(R): {np.mean(corr_mus)} ± {np.std(corr_mus)}', fontsize=FNTSZ)
+    ax.tick_params(labelsize=FNTSZ)
+    fig.savefig(file_save + 'Emissions.pdf', format='pdf', bbox_inches='tight')
+    plt.close(fig)
+
     print('corr_mus:', corr_mus)
     print(f'Mean correlation of matched pairs: {np.mean(corr_mus)} ± {np.std(corr_mus)}')
 
+def compare_reconstructed_true_new(
+    means_rec: list[np.ndarray],
+    posteriors_rec: list[np.ndarray],
+    data: dict,
+    file_save: str,
+    lower: np.array = 0,
+    upper: np.array = None,
+):
+    """
+    Compare reconstructed fHMM parameters to ground truth, with greedy
+    matching of (chain,state) channels and Neuron-ready plots.
 
-    # sorted posteriors
-    n_timesteps = true_states.shape[0]
-    posterior_conc_sort = np.zeros((n_timesteps, len(matched_pairs)))
-    flat_one_hot_states_sort = np.zeros((n_timesteps, len(matched_pairs)))
-    for i in range(len(matched_pairs)):
-        posterior_conc_sort[:, i] = posteriors_conc[:, matched_pairs[i][0]]
-        flat_one_hot_states_sort[:, i] = flat_one_hot_states[:, matched_pairs[i][1]]
-    # Normalize columns to zero mean and unit variance
-    X_norm = (posterior_conc_sort - posterior_conc_sort.mean(axis=0)) / posterior_conc_sort.std(axis=0)
-    Y_norm = (flat_one_hot_states_sort - flat_one_hot_states_sort.mean(axis=0)) / flat_one_hot_states_sort.std(axis=0)
+    Args:
+      - means_rec:    list of reconstructed emission‐means arrays (Ki×D).
+      - posteriors_rec: list of posterior arrays (T×Ki) for each chain.
+      - data:         dict containing 'params' and 'true_states'.
+      - file_save:    prefix path for saving PDFs.
+      - trans_mat_rec: optional list of reconstructed transition matrices.
+    """
 
-    # Compute N x N correlation matrix
-    corr_matrix = (X_norm.T @ Y_norm) / X_norm.shape[0]
+    if upper is None:
+        upper = data['hypers']['num_timesteps']
 
 
-    fig = visualize_corr_matrix(corr_matrix,option=False)
-    ax = fig.gca()
-    ax.set_title('Correlation True vs Reconstructed posteriors')
-    ax.set_ylabel('Reconstructed states')
-    ax.set_xlabel('True States')
-    # Set x-axis tick labels with corresponding factor indices
-    xtick_labels = [f"F{state_factors[i]}-S{i}" for i in range(len(state_factors))]
-    ax.set_xticks(range(len(state_factors)))
-    ax.set_xticklabels(xtick_labels, rotation=90)
-    plt.savefig('fig_modelsel/GroundTruth_compare_posteriors_sorted.pdf')
+    # 1) unpack ground truth
+    TMs_true = data['params']['transition_matrices']
+    mus_true = data['params']['means']
+    true_states = data['true_states']  # shape (T, F)
+    F = len(TMs_true)
+    Kf = [tm.shape[0] for tm in TMs_true]  # #states per factor
+    S = sum(Kf)
+
+    # 2) build true one‐hot stack + state_factors list
+    true_oh_list = []
+    state_factors = []
+    for f in range(F):
+        K = Kf[f]
+        onehot_f = np.eye(K)[true_states[:, f]]  # T×K
+        true_oh_list.append(onehot_f)
+        state_factors += [f] * K
+    true_oh = np.hstack(true_oh_list)  # T×S
+
+    # 3) build reconstructed posterior stack and trim/pad to S
+    rec_oh = np.hstack(posteriors_rec)  # T×S_rec
+    S_rec = rec_oh.shape[1]
+    if S_rec > S:
+        rec_oh = rec_oh[:, :S]
+    elif S_rec < S:
+        pad = np.zeros((T, S - S_rec))
+        rec_oh = np.hstack([rec_oh, pad])
+
+    # 4) cross‐correlation matrix
+    C = np.corrcoef(rec_oh.T, true_oh.T)[:S, S:]  # S×S
+
+
+    # 5) greedy matching to get `perm`
+    C_work = C.copy()
+    mapping = {}
+    for i in range(S):
+        fi, ti = np.unravel_index(np.nanargmax(C_work), C_work.shape)
+        mapping[fi] = ti
+        C_work[fi, :] = -np.inf
+        C_work[:, ti] = -np.inf
+    perm = [mapping[i] for i in range(S)]
+
+    diag_pf   = np.diag(C[np.ix_(range(S), perm)])
+    mean_corr = np.nanmean(diag_pf)
+    std_corr  = np.nanstd(diag_pf)
+
+    # helper to build ticklabels like "(F0,S2)"
+    labels = [f"(F{state_factors[j]},S{j - sum(Kf[:state_factors[j]])})"
+              for j in range(S)]
+
+    # --- Plot 1: Posterior correlation heatmap ---
+    fig, ax = plt.subplots(
+        figsize=(FIG1_3, FIG1_3),
+        constrained_layout=True
+    )
+    sns.heatmap(
+        C[np.ix_(range(S), perm)],
+        cmap='coolwarm', center=0, square=True,
+        xticklabels=labels, yticklabels=labels,
+        cbar_kws={'shrink':0.75},
+        ax=ax
+    )
+    ax.set_title(f"True vs Fit\n(mean={mean_corr:.2f}±{std_corr:.2f})", fontsize=FNTSZ)
+    ax.set_xlabel("True", fontsize=FNTSZ)
+    ax.set_ylabel("Fit", fontsize=FNTSZ)
+    # Set full tick labels for both axes, x rotated 90°, y horizontal
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels, fontsize=FNTSZ, rotation=90)
+    ax.set_yticks(np.arange(len(labels)))
+    ax.set_yticklabels(labels, fontsize=FNTSZ, rotation=0)
+    ax.tick_params(labelsize=FNTSZ)
+    fig.savefig(f"{file_save}_posteriors_corr.pdf", dpi=300)
+    plt.close(fig)
+
+    # --- Plot 2: Emission‐means correlation heatmap ---
+    mu_t = np.vstack(mus_true)    # S×D
+    mu_r = np.vstack(means_rec)   # S×D
+    Cmu = np.corrcoef(mu_r, mu_t)[:S, S:]
+    diag_pf   = np.diag(Cmu[np.ix_(range(S), perm)])
+    mean_mus = np.nanmean(diag_pf)
+    std_mus  = np.nanstd(diag_pf)
+
+    fig, ax = plt.subplots(
+        figsize=(FIG1_3, FIG1_3),
+        constrained_layout=True
+    )
+    sns.heatmap(
+        Cmu[np.ix_(range(S), perm)],
+        cmap='coolwarm', center=0, square=True,
+        xticklabels=labels, yticklabels=labels,
+        cbar_kws={'shrink':0.75},
+        ax=ax
+    )
+    ax.set_title(f"True vs Fit\n(mean={mean_mus:.2f}±{std_mus:.2f})", fontsize=FNTSZ)
+    ax.set_xlabel("True", fontsize=FNTSZ)
+    ax.set_ylabel("Fit", fontsize=FNTSZ)
+    # Set full tick labels for both axes, x rotated 90°, y horizontal
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels, fontsize=FNTSZ, rotation=90)
+    ax.set_yticks(np.arange(len(labels)))
+    ax.set_yticklabels(labels, fontsize=FNTSZ, rotation=0)
+    ax.tick_params(labelsize=FNTSZ)
+    fig.savefig(f"{file_save}_emissions_corr.pdf", dpi=300)
+    plt.close(fig)
+
+
+
+
+
+    # --------------------------------------------------------------------
+    # New panel: compare true vs. reconstructed state sequences
+    # --------------------------------------------------------------------
+    # New panel: permute reconstructed posteriors to match true chain/state order
+    # first gather number of states in each factor
+    true_state_sizes = [p.shape[1] for p in true_oh_list]
+    # horizontally stack all reconstructed posterior matrices
+    # rec_all = np.hstack(posteriors_rec)
+    # apply the previously computed permutation 'perm' to reorder columns
+    true_all_perm = true_oh[:, perm]
+    # split the permuted matrix back into per-factor blocks
+    true_list_perm = []
+    start_idx = 0
+    for sz in true_state_sizes:
+        true_list_perm.append(true_all_perm[:, start_idx:start_idx + sz])
+        start_idx += sz
+    # compute reconstructed state sequence by argmax on each factor block
+    T = true_all_perm.shape[0]
+    state_seq_true = np.column_stack([
+        blk.argmax(axis=1) if blk.shape[1] > 0 else np.zeros(T, dtype=int)
+        for blk in true_list_perm
+    ])
+
+
+    # plot true vs. reconstructed sequences using heatmaps
+    fig, axs = plt.subplots(1, 2, figsize=(2*FIG1_3, FIG1_3), constrained_layout=True)
+
+    # True state sequence
+    data_true = state_seq_true[lower:upper].T  # shape (chains, time)
+    sns.heatmap(
+        data_true,
+        ax=axs[0],
+        cmap='Greys',
+        cbar=False,
+        xticklabels=False,
+        yticklabels=[f"C{c}" for c in range(data_true.shape[0])]
+    )
+    axs[0].set_title('True state sequence', fontsize=FNTSZ)
+    axs[0].set_ylabel('chain', fontsize=FNTSZ)
+    axs[0].set_xlabel('time', fontsize=FNTSZ)
+    # only show first and last time tick
+    axs[0].set_xticks([0, data_true.shape[1] - 1])
+    axs[0].set_xticklabels([str(lower), str(upper-1)], fontsize=FNTSZ)
+
+    # Reconstructed state sequence
+    state_seq_rec = np.column_stack([
+        blk.argmax(axis=1) if blk.shape[1] > 0 else np.zeros(T, dtype=int)
+        for blk in posteriors_rec
+    ])
+    data_rec = state_seq_rec[lower:upper].T  # shape (chains, time)
+    sns.heatmap(
+        data_rec,
+        ax=axs[1],
+        cmap='Greys',
+        cbar=False,
+        xticklabels=False,
+        yticklabels=[f"C{c}" for c in range(data_rec.shape[0])]
+    )
+    axs[1].set_title('Reconstructed state sequence', fontsize=FNTSZ)
+    axs[1].set_ylabel('chain', fontsize=FNTSZ)
+    axs[1].set_xlabel('time', fontsize=FNTSZ)
+    axs[1].set_xticks([0, data_rec.shape[1] - 1])
+    axs[1].set_xticklabels([str(lower), str(upper-1)], fontsize=FNTSZ)
+
+    # save and close
+    fig.savefig(file_save + 'States_seq.pdf', format='pdf', bbox_inches='tight')
+    plt.close(fig)
+    # print("compare_reconstructed_true_new completed successfully.")
